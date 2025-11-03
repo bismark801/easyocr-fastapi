@@ -8,6 +8,13 @@ from fastapi import FastAPI, UploadFile, File, Query, HTTPException
 from pydantic import BaseModel
 import easyocr
 import requests
+import logging
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI(title="EasyOCR API", version="1.0.1")
 
