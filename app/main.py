@@ -5,6 +5,8 @@ from fastapi import FastAPI, UploadFile, File, Query
 from pydantic import BaseModel
 import easyocr
 from typing import List, Tuple, Dict
+from fastapi import HTTPException
+import requests
 
 app = FastAPI(title="EasyOCR API", version="1.0.0")
 
@@ -29,12 +31,20 @@ class UrlPayload(BaseModel):
 
 @app.post("/ocr/url")
 def ocr_url(body: UrlPayload):
-    reader = get_reader(body.langs, body.gpu)
-    result = reader.readtext(body.image_url, detail=body.detail)
-    if body.detail == 0:
-        return {"texts": result}
-    # detail == 1
-    return [{"box": box, "text": text, "conf": float(conf)} for (box, text, conf) in result]
+    try:
+        r = requests.get(body.image_url, timeout=20)
+        if r.status_code != 200 or not r.content:
+            raise HTTPException(status_code=400, detail=f"No se pudo descargar la imagen: HTTP {r.status_code}")
+        img = np.array(Image.open(io.BytesIO(r.content)).convert("RGB"))
+        reader = get_reader(body.langs, body.gpu)
+        result = reader.readtext(img, detail=body.detail)
+        if body.detail == 0:
+            return {"texts": result}
+        return [{"box": box, "text": text, "conf": float(conf)} for (box, text, conf) in result]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OCR error: {e}")
 
 @app.post("/ocr/file")
 async def ocr_file(file: UploadFile = File(...),
