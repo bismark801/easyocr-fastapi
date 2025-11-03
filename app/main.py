@@ -67,14 +67,50 @@ def ocr_url(body: UrlPayload):
         raise HTTPException(status_code=500, detail=f"OCR error: {e}")
 
 @app.post("/ocr/file")
-async def ocr_file(file: UploadFile = File(...),
-                   langs: str = Query("es,en"),
-                   gpu: bool = Query(False),
-                   detail: int = Query(1)):
-    data = await file.read()
-    img = np.array(Image.open(io.BytesIO(data)).convert("RGB"))
-    reader = get_reader(langs.split(","), gpu)
-    result = reader.readtext(img, detail=detail)
-    if detail == 0:
-        return {"texts": result}
-    return [{"box": box, "text": text, "conf": float(conf)} for (box, text, conf) in result]
+async def ocr_file(
+    file: UploadFile = File(...),
+    langs: str = Query("es,en"),
+    gpu: bool = Query(False),
+    detail: int = Query(1)
+):
+    try:
+        # Leer el archivo
+        data = await file.read()
+        
+        # Validar que no esté vacío
+        if not data:
+            raise HTTPException(status_code=400, detail="El archivo está vacío")
+        
+        # Validar que sea una imagen válida
+        try:
+            img = Image.open(io.BytesIO(data)).convert("RGB")
+        except UnidentifiedImageError:
+            raise HTTPException(status_code=400, detail="El archivo no es una imagen válida")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error al abrir la imagen: {str(e)}")
+        
+        # Convertir a numpy array
+        img_array = np.array(img)
+        
+        # Parsear idiomas
+        langs_list = [lang.strip() for lang in langs.split(",")]
+        
+        # Obtener reader y procesar
+        reader = get_reader(langs_list, gpu)
+        result = reader.readtext(img_array, detail=detail)
+        
+        # Devolver resultado
+        if detail == 0:
+            return {"texts": result}
+        
+        return [
+            {"box": box, "text": text, "conf": float(conf)} 
+            for (box, text, conf) in result
+        ]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Log del error para debugging
+        logging.error(f"Error en OCR: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error al procesar la imagen: {str(e)}")
