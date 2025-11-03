@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+easyocr==1.7.1
+numpy
+pillow
+torch==2.2.2
+torchvision==0.17.2
